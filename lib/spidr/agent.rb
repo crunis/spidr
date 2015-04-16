@@ -64,6 +64,9 @@ module Spidr
     #
     # @return [Array<URI::HTTP>]
     attr_reader :queue
+    # Hash version of the queue for quicker lookups
+    # @return [Hash[uri.to_s]:URI::HTTP]
+    attr_reader :queue_hash
 
     # Cached cookies
     #
@@ -157,6 +160,7 @@ module Spidr
       @history  = Set[]
       @failures = Set[]
       @queue    = []
+      @queue_hash = {}
 
       @levels    = Hash.new(0)
       @max_depth = options[:max_depth]
@@ -239,6 +243,7 @@ module Spidr
     #
     def clear
       @queue.clear
+      @queue_hash.clear
       @history.clear
       @failures.clear
       return self
@@ -445,11 +450,13 @@ module Spidr
     #
     def queue=(new_queue)
       @queue.clear
+      @queue_hash.clear
 
       new_queue.each do |url|
         url = URI(url.to_s) unless url.kind_of?(URI)
 
         @queue << url
+        @queue_hash[url.to_s]=url
       end
 
       return @queue
@@ -465,7 +472,10 @@ module Spidr
     #   Specifies whether the given URL has been queued for visiting.
     #
     def queued?(url)
-      @queue.include?(url)
+      #@queue.include?(url)
+      # Finding keys in a hash is way faster than finding elements in an array
+      # And comparing strings is faster than comparing URI objects
+      @queue_hash.has_key?(url.to_s)
     end
 
     #
@@ -507,6 +517,7 @@ module Spidr
         end
         
         @queue << url
+        @queue_hash[url.to_s] = url
         @levels[url] = level
         return true
       end
@@ -640,7 +651,7 @@ module Spidr
     #   the `queue` of the agent.
     #
     def to_hash
-      {:history => @history, :queue => @queue}
+      {:history => @history, :queue => @queue, :queue_hash => @queue_hash}
     end
 
     protected
@@ -727,7 +738,10 @@ module Spidr
     #   The URL that was at the front of the queue.
     #
     def dequeue
-      @queue.shift
+      #TODO check : @queue_hash.delete(@queue.shift.to_s)
+      uri = @queue.shift
+      @queue_hash.delete(uri.to_s)
+      uri
     end
 
     #
